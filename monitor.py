@@ -19,6 +19,11 @@ from bs4 import BeautifulSoup
 URLS = {
     "HudsonsBay": "https://www.alvarezandmarsal.com/HudsonsBay",
     "TRUCanada": "https://www.alvarezandmarsal.com/TRUCanada",
+    "TRU-NoticeToCreditors": "https://www.alvarezandmarsal.com/content/toys-r-us-canada-notice-creditors",
+    "TRU-MotionMaterials": "https://www.alvarezandmarsal.com/content/toys-r-us-canada-motion-materials",
+    "TRU-CourtOrders": "https://www.alvarezandmarsal.com/content/toys-r-us-canada-court-orders",
+    "TRU-MonitorsReports": "https://www.alvarezandmarsal.com/content/toys-r-us-canada-monitors-reports",
+    "TRU-ServiceList": "https://www.alvarezandmarsal.com/content/toys-r-us-canada-service-list",
 }
 
 # File to store previous content
