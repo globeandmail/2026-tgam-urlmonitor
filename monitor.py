@@ -25,7 +25,10 @@ URLS = {
 STATE_FILE = Path(__file__).parent / "data" / "previous_content.json"
 
 # Email settings
-RECIPIENT_EMAIL = "dmcmillan@globeandmail.com"
+RECIPIENT_EMAILS = [
+    "dmcmillan@globeandmail.com",
+    "SRobertson@globeandmail.com",
+]
 
 
 def fetch_page_text(url: str) -> str:
@@ -76,8 +79,28 @@ def generate_diff(old_text: str, new_text: str) -> str:
     return "\n".join(diff)
 
 
-def send_email_gmail(subject: str, body: str) -> None:
-    """Send email via Gmail SMTP."""
+def diff_to_html(diff_text: str) -> str:
+    """Convert unified diff to color-coded HTML."""
+    if not diff_text:
+        return "<p><em>No differences found</em></p>"
+
+    lines = []
+    for line in diff_text.splitlines():
+        escaped = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        if line.startswith("+") and not line.startswith("+++"):
+            lines.append(f'<div style="background-color: #d4edda; color: #155724; padding: 2px 8px; font-family: monospace; white-space: pre-wrap;">{escaped}</div>')
+        elif line.startswith("-") and not line.startswith("---"):
+            lines.append(f'<div style="background-color: #f8d7da; color: #721c24; padding: 2px 8px; font-family: monospace; white-space: pre-wrap;">{escaped}</div>')
+        elif line.startswith("@@"):
+            lines.append(f'<div style="background-color: #e2e3e5; color: #383d41; padding: 2px 8px; font-family: monospace; margin-top: 10px;">{escaped}</div>')
+        else:
+            lines.append(f'<div style="padding: 2px 8px; font-family: monospace; white-space: pre-wrap;">{escaped}</div>')
+
+    return "".join(lines)
+
+
+def send_email_gmail(subject: str, body: str, html_body: str = None) -> None:
+    """Send email via Gmail SMTP with optional HTML."""
     gmail_address = os.environ.get("GMAIL_ADDRESS")
     gmail_app_password = os.environ.get("GMAIL_APP_PASSWORD")
 
@@ -88,17 +111,23 @@ def send_email_gmail(subject: str, body: str) -> None:
         print(f"Body:\n{body}")
         return
 
-    msg = MIMEMultipart()
+    msg = MIMEMultipart("alternative")
     msg["From"] = gmail_address
-    msg["To"] = RECIPIENT_EMAIL
+    msg["To"] = ", ".join(RECIPIENT_EMAILS)
     msg["Subject"] = subject
+
+    # Attach plain text version
     msg.attach(MIMEText(body, "plain"))
+
+    # Attach HTML version if provided
+    if html_body:
+        msg.attach(MIMEText(html_body, "html"))
 
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(gmail_address, gmail_app_password)
-            server.sendmail(gmail_address, RECIPIENT_EMAIL, msg.as_string())
-        print(f"Email sent successfully to {RECIPIENT_EMAIL}")
+            server.sendmail(gmail_address, RECIPIENT_EMAILS, msg.as_string())
+        print(f"Email sent successfully to {', '.join(RECIPIENT_EMAILS)}")
     except Exception as e:
         print(f"Failed to send email: {e}")
 
@@ -151,6 +180,8 @@ def main():
 
         for change in changes:
             subject = f"URL Change Detected: {change['name']}"
+
+            # Plain text version
             body = f"""A change was detected on the monitored page.
 
 Page: {change['name']}
@@ -164,7 +195,57 @@ Changes:
 
 This is an automated message from URL Monitor.
 """
-            send_email_gmail(subject, body)
+
+            # HTML version
+            html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}
+        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }}
+        .header h1 {{ margin: 0 0 10px 0; font-size: 24px; }}
+        .info-box {{ background-color: #f8f9fa; border-left: 4px solid #667eea; padding: 15px; margin-bottom: 20px; }}
+        .info-box p {{ margin: 5px 0; }}
+        .label {{ font-weight: bold; color: #495057; }}
+        .diff-container {{ background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; overflow-x: auto; }}
+        .diff-header {{ font-weight: bold; margin-bottom: 10px; color: #495057; }}
+        .legend {{ display: flex; gap: 20px; margin-bottom: 15px; font-size: 14px; }}
+        .legend-item {{ display: flex; align-items: center; gap: 5px; }}
+        .legend-added {{ width: 16px; height: 16px; background-color: #d4edda; border: 1px solid #c3e6cb; }}
+        .legend-removed {{ width: 16px; height: 16px; background-color: #f8d7da; border: 1px solid #f5c6cb; }}
+        .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #dee2e6; font-size: 12px; color: #6c757d; }}
+        a {{ color: #667eea; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Change Detected</h1>
+        <p>{change['name']}</p>
+    </div>
+
+    <div class="info-box">
+        <p><span class="label">Page:</span> {change['name']}</p>
+        <p><span class="label">URL:</span> <a href="{change['url']}">{change['url']}</a></p>
+        <p><span class="label">Detected:</span> {change['timestamp']}</p>
+    </div>
+
+    <div class="diff-container">
+        <div class="diff-header">Changes</div>
+        <div class="legend">
+            <div class="legend-item"><div class="legend-added"></div> Added</div>
+            <div class="legend-item"><div class="legend-removed"></div> Removed</div>
+        </div>
+        {diff_to_html(change['diff'])}
+    </div>
+
+    <div class="footer">
+        This is an automated message from URL Monitor.
+    </div>
+</body>
+</html>
+"""
+            send_email_gmail(subject, body, html_body)
     else:
         print("\nNo changes detected.")
 
