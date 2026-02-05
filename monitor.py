@@ -14,10 +14,27 @@ from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
+import urllib3
+
+# Suppress SSL warnings for sites with certificate issues
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # URLs to monitor
 URLS = {
+    # Hudson's Bay main
     "HudsonsBay": "https://www.alvarezandmarsal.com/HudsonsBay",
+    "HBC-MotionMaterials": "https://www.alvarezandmarsal.com/content/hudsons-bay-canada-motion-materials",
+    "HBC-CourtOrders": "https://www.alvarezandmarsal.com/content/hudsons-bay-canada-court-orders",
+    "HBC-MonitorsReports": "https://www.alvarezandmarsal.com/content/hudsons-bay-canada-monitors-reports",
+    "HBC-Notices": "https://www.alvarezandmarsal.com/content/hudsons-bay-canada-notices-0",
+    "HBC-WEPP": "https://www.alvarezandmarsal.com/content/hudsons-bay-canada-wepp",
+    "HBC-NoticeToCreditors": "https://www.alvarezandmarsal.com/content/hudsons-bay-canada-notice-creditors",
+    # RioCan HBC JV (FTI Consulting)
+    "RioCanHBC-CourtOrders": "https://cfcanada.fticonsulting.com/RioCanHBCJV/courtOrders.htm",
+    "RioCanHBC-Reports": "https://cfcanada.fticonsulting.com/RioCanHBCJV/reports.htm",
+    "RioCanHBC-Motions": "https://cfcanada.fticonsulting.com/RioCanHBCJV/motions.htm",
+    "RioCanHBC-Other": "https://cfcanada.fticonsulting.com/RioCanHBCJV/other.htm",
+    # Toys R Us Canada
     "TRUCanada": "https://www.alvarezandmarsal.com/TRUCanada",
     "TRU-NoticeToCreditors": "https://www.alvarezandmarsal.com/content/toys-r-us-canada-notice-creditors",
     "TRU-MotionMaterials": "https://www.alvarezandmarsal.com/content/toys-r-us-canada-motion-materials",
@@ -41,7 +58,9 @@ def fetch_page_text(url: str) -> str:
     headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
     }
-    response = requests.get(url, headers=headers, timeout=30)
+    # Some sites (e.g., FTI Consulting) have SSL certificate issues
+    verify_ssl = "fticonsulting.com" not in url
+    response = requests.get(url, headers=headers, timeout=30, verify=verify_ssl)
     response.raise_for_status()
 
     soup = BeautifulSoup(response.text, "html.parser")
