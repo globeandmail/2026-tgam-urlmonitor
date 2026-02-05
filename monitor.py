@@ -34,6 +34,8 @@ URLS = {
     "RioCanHBC-Reports": "https://cfcanada.fticonsulting.com/RioCanHBCJV/reports.htm",
     "RioCanHBC-Motions": "https://cfcanada.fticonsulting.com/RioCanHBCJV/motions.htm",
     "RioCanHBC-Other": "https://cfcanada.fticonsulting.com/RioCanHBCJV/other.htm",
+    # Popeyes (BDO)
+    "Popeyes-BDO": "https://www.bdo.ca/services/financial-advisory-services/business-restructuring-turnaround-services/current-engagements/popeyes",
     # Toys R Us Canada
     "TRUCanada": "https://www.alvarezandmarsal.com/TRUCanada",
     "TRU-NoticeToCreditors": "https://www.alvarezandmarsal.com/content/toys-r-us-canada-notice-creditors",
