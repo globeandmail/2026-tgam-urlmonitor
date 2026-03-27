@@ -62,7 +62,9 @@ def fetch_page_text(url: str) -> str:
     }
     # Some sites (e.g., FTI Consulting) have SSL certificate issues
     verify_ssl = "fticonsulting.com" not in url
-    response = requests.get(url, headers=headers, timeout=30, verify=verify_ssl)
+    # Use a (connect, read) tuple: 10s to establish connection, 30s to read response.
+    # This prevents SSL handshake hangs from stalling the whole monitor run.
+    response = requests.get(url, headers=headers, timeout=(10, 30), verify=verify_ssl)
     response.raise_for_status()
 
     soup = BeautifulSoup(response.text, "html.parser")
@@ -191,7 +193,10 @@ def check_for_changes() -> list[dict]:
             if name in previous_state:
                 current_state[name] = previous_state[name]
 
-    save_state(current_state)
+        # Save after every URL so a hang or crash on a later URL doesn't lose
+        # baselines already collected in this run.
+        save_state(current_state)
+
     return changes
 
 
