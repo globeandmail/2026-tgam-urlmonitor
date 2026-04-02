@@ -57,8 +57,15 @@ RECIPIENT_EMAILS = [
 def extract_text_from_html(html: str) -> str:
     """Extract normalized body text from an HTML string."""
     soup = BeautifulSoup(html, "html.parser")
+
+    # Remove structural chrome and third-party injected noise
     for element in soup(["script", "style", "nav", "footer", "header"]):
         element.decompose()
+
+    # Remove OneTrust cookie consent banner (injected dynamically, changes unpredictably)
+    for element in soup(id="onetrust-consent-sdk"):
+        element.decompose()
+
     lines = [line.strip() for line in soup.get_text(separator="\n", strip=True).splitlines() if line.strip()]
     return "\n".join(lines)
 
