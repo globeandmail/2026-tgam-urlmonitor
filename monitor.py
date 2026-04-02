@@ -12,13 +12,8 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pathlib import Path
 
-import requests
 from bs4 import BeautifulSoup
-import urllib3
 from playwright.sync_api import sync_playwright
-
-# Suppress SSL warnings for sites with certificate issues
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # URLs to monitor
 URLS = {
@@ -59,28 +54,12 @@ RECIPIENT_EMAILS = [
 ]
 
 
-def fetch_page_text(url: str) -> str:
-    """Fetch a URL and extract body text content."""
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
-    }
-    # Some sites (e.g., FTI Consulting) have SSL certificate issues
-    verify_ssl = "fticonsulting.com" not in url
-    # Use a (connect, read) tuple: 10s to establish connection, 30s to read response.
-    # This prevents SSL handshake hangs from stalling the whole monitor run.
-    response = requests.get(url, headers=headers, timeout=(10, 30), verify=verify_ssl)
-    response.raise_for_status()
-
-    soup = BeautifulSoup(response.text, "html.parser")
-
-    # Remove script and style elements
+def extract_text_from_html(html: str) -> str:
+    """Extract normalized body text from an HTML string."""
+    soup = BeautifulSoup(html, "html.parser")
     for element in soup(["script", "style", "nav", "footer", "header"]):
         element.decompose()
-
-    # Get text and normalize whitespace
-    text = soup.get_text(separator="\n", strip=True)
-    # Normalize multiple newlines
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    lines = [line.strip() for line in soup.get_text(separator="\n", strip=True).splitlines() if line.strip()]
     return "\n".join(lines)
 
 
@@ -165,53 +144,20 @@ def send_email_gmail(subject: str, body: str, html_body: str = None) -> None:
 
 
 def check_for_changes() -> list[dict]:
-    """Check all URLs for changes. Returns list of changes detected."""
+    """
+    Load each URL in a real browser, take a screenshot, extract text, and
+    compare against the stored baseline.  Returns a list of changes detected.
+    """
+    SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
     previous_state = load_previous_state()
     current_state = {}
     changes = []
 
-    for name, url in URLS.items():
-        print(f"Checking {name}: {url}")
-        try:
-            current_text = fetch_page_text(url)
-            current_state[name] = current_text
-
-            if name in previous_state:
-                if current_text != previous_state[name]:
-                    diff = generate_diff(previous_state[name], current_text)
-                    changes.append({
-                        "name": name,
-                        "url": url,
-                        "diff": diff,
-                        "timestamp": datetime.now().isoformat(),
-                    })
-                    print(f"  CHANGE DETECTED!")
-                else:
-                    print(f"  No changes")
-            else:
-                print(f"  First run - storing baseline")
-
-        except requests.RequestException as e:
-            print(f"  ERROR fetching {url}: {e}")
-            # Keep previous state if fetch fails
-            if name in previous_state:
-                current_state[name] = previous_state[name]
-
-        # Save after every URL so a hang or crash on a later URL doesn't lose
-        # baselines already collected in this run.
-        save_state(current_state)
-
-    return changes
-
-
-def capture_screenshots() -> None:
-    """Take a full-page screenshot of every monitored URL, saving to data/screenshots/<name>.png."""
-    SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
-    print("Capturing screenshots...")
     with sync_playwright() as p:
         browser = p.chromium.launch()
+
         for name, url in URLS.items():
-            print(f"  Screenshotting {name}")
+            print(f"Checking {name}: {url}")
             try:
                 page = browser.new_page()
                 try:
@@ -219,19 +165,44 @@ def capture_screenshots() -> None:
                 except Exception:
                     # Some pages have long-running JS; fall back to domcontentloaded
                     page.goto(url, wait_until="domcontentloaded", timeout=30000)
+
                 page.screenshot(path=str(SCREENSHOT_DIR / f"{name}.png"), full_page=True)
+                current_text = extract_text_from_html(page.content())
                 page.close()
+
+                current_state[name] = current_text
+
+                if name in previous_state:
+                    if current_text != previous_state[name]:
+                        diff = generate_diff(previous_state[name], current_text)
+                        changes.append({
+                            "name": name,
+                            "url": url,
+                            "diff": diff,
+                            "timestamp": datetime.now().isoformat(),
+                        })
+                        print(f"  CHANGE DETECTED!")
+                    else:
+                        print(f"  No changes")
+                else:
+                    print(f"  First run - storing baseline")
+
             except Exception as e:
-                print(f"    ERROR: {e}")
+                print(f"  ERROR fetching {url}: {e}")
+                if name in previous_state:
+                    current_state[name] = previous_state[name]
+
+            # Save after every URL so a hang or crash later doesn't lose earlier baselines.
+            save_state(current_state)
+
         browser.close()
-    print("  Screenshots complete.")
+
+    return changes
 
 
 def main():
     print(f"URL Monitor starting at {datetime.now().isoformat()}")
     print("-" * 50)
-
-    capture_screenshots()
 
     changes = check_for_changes()
 
