@@ -15,6 +15,7 @@ from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 import urllib3
+from playwright.sync_api import sync_playwright
 
 # Suppress SSL warnings for sites with certificate issues
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -47,6 +48,12 @@ URLS = {
 
 # File to store previous content
 STATE_FILE = Path(__file__).parent / "data" / "previous_content.json"
+
+# Screenshot of last fetch (overwritten each run)
+SCREENSHOT_FILE = Path(__file__).parent / "data" / "last_screenshot.png"
+
+# URL to screenshot each run as a visual diagnostic
+SCREENSHOT_URL = "https://www.alvarezandmarsal.com/content/toys-r-us-canada-motion-materials"
 
 # Email settings
 RECIPIENT_EMAILS = [
@@ -200,9 +207,27 @@ def check_for_changes() -> list[dict]:
     return changes
 
 
+def capture_screenshot() -> None:
+    """Take a full-page screenshot of SCREENSHOT_URL and save it, overwriting the previous one."""
+    SCREENSHOT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    print(f"Capturing screenshot of {SCREENSHOT_URL}")
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page()
+            page.goto(SCREENSHOT_URL, wait_until="networkidle", timeout=30000)
+            page.screenshot(path=str(SCREENSHOT_FILE), full_page=True)
+            browser.close()
+        print(f"  Screenshot saved to {SCREENSHOT_FILE}")
+    except Exception as e:
+        print(f"  ERROR capturing screenshot: {e}")
+
+
 def main():
     print(f"URL Monitor starting at {datetime.now().isoformat()}")
     print("-" * 50)
+
+    capture_screenshot()
 
     changes = check_for_changes()
 

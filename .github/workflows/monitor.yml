@@ -25,6 +25,9 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Install Playwright browsers
+        run: uv run playwright install chromium --with-deps
+
       - name: Run URL monitor
         env:
           GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
@@ -35,6 +38,6 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add data/previous_content.json
+          git add data/previous_content.json data/last_screenshot.png
           git diff --staged --quiet || git commit -m "Update monitored content state"
           git push
