@@ -63,8 +63,12 @@ def extract_text_from_html(html: str) -> str:
     for element in soup(["script", "style", "nav", "footer", "header"]):
         element.decompose()
 
-    # Remove OneTrust cookie consent banner (injected dynamically, changes unpredictably)
+    # Remove cookie consent banners (injected dynamically, change unpredictably)
+    # OneTrust (used by A&M)
     for element in soup(id="onetrust-consent-sdk"):
+        element.decompose()
+    # CookieYes (used by BDO) - strip any element whose first class starts with "cky-"
+    for element in soup(lambda tag: any(c.startswith("cky-") for c in tag.get("class", []))):
         element.decompose()
 
     lines = [line.strip() for line in soup.get_text(separator="\n", strip=True).splitlines() if line.strip()]
