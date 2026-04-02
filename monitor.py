@@ -49,11 +49,8 @@ URLS = {
 # File to store previous content
 STATE_FILE = Path(__file__).parent / "data" / "previous_content.json"
 
-# Screenshot of last fetch (overwritten each run)
-SCREENSHOT_FILE = Path(__file__).parent / "data" / "last_screenshot.png"
-
-# URL to screenshot each run as a visual diagnostic
-SCREENSHOT_URL = "https://www.alvarezandmarsal.com/content/toys-r-us-canada-motion-materials"
+# Directory for per-URL screenshots (one file per URL, overwritten each run)
+SCREENSHOT_DIR = Path(__file__).parent / "data" / "screenshots"
 
 # Email settings
 RECIPIENT_EMAILS = [
@@ -207,27 +204,34 @@ def check_for_changes() -> list[dict]:
     return changes
 
 
-def capture_screenshot() -> None:
-    """Take a full-page screenshot of SCREENSHOT_URL and save it, overwriting the previous one."""
-    SCREENSHOT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    print(f"Capturing screenshot of {SCREENSHOT_URL}")
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch()
-            page = browser.new_page()
-            page.goto(SCREENSHOT_URL, wait_until="networkidle", timeout=30000)
-            page.screenshot(path=str(SCREENSHOT_FILE), full_page=True)
-            browser.close()
-        print(f"  Screenshot saved to {SCREENSHOT_FILE}")
-    except Exception as e:
-        print(f"  ERROR capturing screenshot: {e}")
+def capture_screenshots() -> None:
+    """Take a full-page screenshot of every monitored URL, saving to data/screenshots/<name>.png."""
+    SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
+    print("Capturing screenshots...")
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        for name, url in URLS.items():
+            print(f"  Screenshotting {name}")
+            try:
+                page = browser.new_page()
+                try:
+                    page.goto(url, wait_until="networkidle", timeout=30000)
+                except Exception:
+                    # Some pages have long-running JS; fall back to domcontentloaded
+                    page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                page.screenshot(path=str(SCREENSHOT_DIR / f"{name}.png"), full_page=True)
+                page.close()
+            except Exception as e:
+                print(f"    ERROR: {e}")
+        browser.close()
+    print("  Screenshots complete.")
 
 
 def main():
     print(f"URL Monitor starting at {datetime.now().isoformat()}")
     print("-" * 50)
 
-    capture_screenshot()
+    capture_screenshots()
 
     changes = check_for_changes()
 
