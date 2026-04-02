@@ -50,7 +50,6 @@ SCREENSHOT_DIR = Path(__file__).parent / "data" / "screenshots"
 # Email settings
 RECIPIENT_EMAILS = [
     "dmcmillan@globeandmail.com",
-    "SRobertson@globeandmail.com",
 ]
 
 
