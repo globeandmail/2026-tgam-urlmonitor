@@ -14,6 +14,7 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
+from playwright_stealth import Stealth
 
 # URLs to monitor
 URLS = {
@@ -152,7 +153,7 @@ def check_for_changes() -> list[dict]:
     current_state = {}
     changes = []
 
-    with sync_playwright() as p:
+    with Stealth().use_sync(sync_playwright()) as p:
         browser = p.chromium.launch()
 
         for name, url in URLS.items():
