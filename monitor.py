@@ -160,11 +160,7 @@ def check_for_changes() -> list[dict]:
             print(f"Checking {name}: {url}")
             try:
                 page = browser.new_page()
-                try:
-                    page.goto(url, wait_until="networkidle", timeout=30000)
-                except Exception:
-                    # Some pages have long-running JS; fall back to domcontentloaded
-                    page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                page.goto(url, wait_until="domcontentloaded", timeout=30000)
 
                 page.screenshot(path=str(SCREENSHOT_DIR / f"{name}.png"), full_page=True)
                 current_text = extract_text_from_html(page.content())
